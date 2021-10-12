@@ -23,3 +23,5 @@ Configuration for LAB-VM02
   - PasswordAuthentication no
   - sshpass jenkins .pub key for non-password authentication
   - restart sshd service
+
+There is two files - lab01.yml playbook and job in .xml for import and run in jenkins (bash configure ssh and remote node LAB-VM02)
