@@ -1,0 +1,82 @@
+---
+- hosts: LAB-VM01
+  become: yes
+  become_user: root
+  vars:
+    key: "{{ lookup('file', '/home/nik/.ansible/files/initialAdminPassword/LAB-VM01/var/lib/jenkins/secrets/initialAdminPassword') }}"
+  tasks:
+    - name: Check Epel-release
+      yum:
+        name: epel-release
+        state: present
+        update_cache: true
+    - name: Check Daemonize
+      yum:
+        name: daemonize
+        state: present
+        update_cache: true
+    - name: Check Jenkins repository is added
+      yum_repository:
+        name: jenkins-ci
+        description: jenkins-ci package repository
+        baseurl: http://pkg.jenkins.io/redhat
+        gpgkey: https://pkg.jenkins.io/redhat/jenkins.io.key
+        gpgcheck: yes
+    - name: Check Jenkins gpp key is imported
+      rpm_key:
+        state: present
+        key: https://pkg.jenkins.io/redhat/jenkins.io.key
+    - name: Check Jenkins package installed
+      yum:
+        name: '{{ packages }}'
+        state: present
+        update_cache: true
+      vars:
+        packages:
+          - java-devel
+          - jenkins
+          - sshpass
+    - name: Check systemd daemon reloaded
+      ansible.builtin.systemd:
+        daemon_reexec: yes
+    - name: Ensure Jenkins service is enabled and started
+      service:
+        name: jenkins
+        state: started
+    - name: Check jenkins service added to firewalld
+      firewalld:
+        service: jenkins
+        state: enabled
+        permanent: yes
+        immediate: yes
+    - name: Check port 8080 added to firewalld
+      firewalld:
+        port: 8080/tcp
+        state: enabled
+        permanent: yes
+        immediate: yes
+    - name: Wait for create jenkins admin token
+      wait_for:
+        path: /var/lib/jenkins/secrets/initialAdminPassword
+    - name: Fetch admin token
+      ansible.builtin.fetch:
+        dest: /home/nik/.ansible/files/initialAdminPassword
+        src: /var/lib/jenkins/secrets/initialAdminPassword
+    - name: Transfer job file to Jenkins
+      ansible.builtin.copy:
+        dest: /etc/lab01.xml
+        src: /home/nik/.ansible/files/lab01.xml
+    - name: Wait for Jenkins start
+      wait_for:
+        host=localhost
+        port=8080
+        delay=60
+        timeout=300
+    - name: Get jenkins-cli
+      get_url:
+        dest: /usr/bin/jenkins-cli.jar
+        url: "http://localhost:8080/jnlpJars/jenkins-cli.jar"
+    - name: Import Job to jenkins
+      shell: "java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ -auth admin:{{ key }} create-job lab01 < /etc/lab01.xml"
+    - name: Run Jenkins job
+      shell: "java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ -auth admin:{{ key }} build lab01"

@@ -1,0 +1,62 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>configure LAB-VM02</description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command># create jenkins ssh keys
+if [ ! -e ~jenkins/.ssh ]; then mkdir ~jenkins/.ssh; fi
+cd ~jenkins/.ssh/
+if [ ! -e ~jenkins/.ssh/id_rsa.pub ]; then ssh-keygen -C &quot;jenkins&quot; -f ~jenkins/.ssh/id_rsa -P &quot;&quot;; fi
+chown -R jenkins ~jenkins/.ssh/
+chmod 700 ~jenkins/.ssh
+chmod 600 ~jenkins/.ssh/*</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+    <hudson.tasks.Shell>
+      <command># create user jenkins in LAB-VM02 via SSH
+sshpass -p &apos;simplepassword&apos; ssh -o StrictHostKeyChecking=no root@10.175.5.170 &lt;&lt;&apos;ENDSSH&apos;
+adduser jenkins
+gpasswd -a jenkins wheel
+echo &quot;jenkinspassword&quot; | passwd --stdin jenkins
+ENDSSH</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+    <hudson.tasks.Shell>
+      <command># copy jenkins ssh key to LAB-VM02
+sshpass -p &quot;jenkinspassword&quot; ssh-copy-id -o StrictHostKeyChecking=no jenkins@10.175.5.170</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+    <hudson.tasks.Shell>
+      <command># configurate LAB-VM02 via SSH
+sshpass -p &apos;simplepassword&apos; ssh -o StrictHostKeyChecking=no root@10.175.5.170 &lt;&lt;&apos;ENDSSH&apos;
+yum update -y
+yum install epel-release -y
+yum install htop tmux jq -y
+sudo sed -i &quot;s/.*PermitRootLogin.*/PermitRootLogin no/g&quot; /etc/ssh/sshd_config
+sudo sed -i &quot;s/.*PasswordAuthentication.*/PasswordAuthentication no/g&quot; /etc/ssh/sshd_config
+sudo systemctl restart sshd
+ENDSSH</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+    <hudson.tasks.Shell>
+      <command># check ssh with key
+sshpass ssh -i ~jenkins/.ssh/id_rsa jenkins@10.175.5.170 &lt;&lt;&apos;ENDSSH&apos;
+echo connected to host:
+hostname
+ENDSSH</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>
