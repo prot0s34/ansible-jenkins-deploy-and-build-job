@@ -3,18 +3,26 @@
   become: yes
   become_user: root
   vars:
-    key: "{{ lookup('file', '/home/nik/.ansible/files/initialAdminPassword/LAB-VM01/var/lib/jenkins/secrets/initialAdminPassword') }}"
+    jenkinsjobname: lab01
+    jenkinsclipath: /usr/bin/jenkins-cli.jar
+    jenkinstoken: /var/lib/jenkins/secrets/initialAdminPassword
+    jenkinsweburl: http://localhost:8080/
+    key: "{{ lookup('file', '~/.ansible/files/initialAdminPassword/LAB-VM01/var/lib/jenkins/secrets/initialAdminPassword') }}"
   tasks:
-    - name: Check Epel-release
+    - name: Check Epel-Release installed
       yum:
         name: epel-release
         state: present
         update_cache: true
-    - name: Check Daemonize
+    - name: Check Pre-packages installed
       yum:
-        name: daemonize
+        name: '{{ prepackages }}'
         state: present
         update_cache: true
+      vars:
+        prepackages:
+          - sshpass
+          - daemonize
     - name: Check Jenkins repository is added
       yum_repository:
         name: jenkins-ci
@@ -35,15 +43,14 @@
         packages:
           - java-devel
           - jenkins
-          - sshpass
     - name: Check systemd daemon reloaded
       ansible.builtin.systemd:
         daemon_reexec: yes
-    - name: Ensure Jenkins service is enabled and started
+    - name: Check Jenkins service is started
       service:
         name: jenkins
         state: started
-    - name: Check jenkins service added to firewalld
+    - name: Check Jenkins service added to firewalld
       firewalld:
         service: jenkins
         state: enabled
@@ -55,28 +62,28 @@
         state: enabled
         permanent: yes
         immediate: yes
-    - name: Wait for create jenkins admin token
+    - name: Wait for create Jenkins Web Admin token
       wait_for:
-        path: /var/lib/jenkins/secrets/initialAdminPassword
-    - name: Fetch admin token
+        path: "{{ jenkinstoken }}"
+    - name: Fetch Web Admin token
       ansible.builtin.fetch:
-        dest: /home/nik/.ansible/files/initialAdminPassword
-        src: /var/lib/jenkins/secrets/initialAdminPassword
+        dest: ~/.ansible/files/initialAdminPassword
+        src: "{{ jenkinstoken }}"
     - name: Transfer job file to Jenkins
       ansible.builtin.copy:
         dest: /etc/lab01.xml
-        src: /home/nik/.ansible/files/lab01.xml
+        src: ~/.ansible/files/lab01.xml
     - name: Wait for Jenkins start
       wait_for:
         host=localhost
         port=8080
         delay=60
         timeout=300
-    - name: Get jenkins-cli
+    - name: Get Jenkins-cli
       get_url:
-        dest: /usr/bin/jenkins-cli.jar
-        url: "http://localhost:8080/jnlpJars/jenkins-cli.jar"
+        dest: "{{ jenkinsclipath }}"
+        url: "{{ jenkinsweburl }}jnlpJars/jenkins-cli.jar"
     - name: Import Job to jenkins
-      shell: "java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ -auth admin:{{ key }} create-job lab01 < /etc/lab01.xml"
+      shell: "java -jar {{ jenkinsclipath }} -s {{ jenkinsweburl }} -auth admin:{{ key }} create-job lab01 < /etc/{{ jenkinsjobname }}.xml"
     - name: Run Jenkins job
-      shell: "java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ -auth admin:{{ key }} build lab01"
+      shell: "java -jar {{ jenkinsclipath }} -s {{ jenkinsweburl }} -auth admin:{{ key }} build {{ jenkinsjobname }}"
